@@ -5,6 +5,8 @@ from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 
 import math
+from copy import deepcopy
+from path_planner import PathPlanner 
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -21,8 +23,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
-
+LOOKAHEAD_WPS = 30 # Number of waypoints we will publish. You can change this number
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -33,20 +34,47 @@ class WaypointUpdater(object):
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
 
-
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         # TODO: Add other member variables you need below
 
-        rospy.spin()
+        self.current_pose = None
+        self.base_waypoints = None
+
+        self.planner = PathPlanner(LOOKAHEAD_WPS)
+
+        # rospy.spin()
+
+    def publish(self, waypoints):
+        if waypoints == []:
+            return 
+
+        lane = Lane()
+        lane.header.frame_id = '/world'
+        lane.header.stamp = rospy.get_rostime()
+        lane.waypoints = waypoints
+        self.final_waypoints_pub.publish(lane)
+
+    def run(self):
+        rospy.loginfo('### Run')
+        rate = rospy.Rate(2) # 10hz
+        while not rospy.is_shutdown():
+            rospy.loginfo('### looping ... ')
+            waypoints = self.planner.generate_waypoints()
+            self.publish(waypoints)
+            rate.sleep()
 
     def pose_cb(self, msg):
-        # TODO: Implement
-        pass
+        # msg - geometry_msgs/PoseStamped
+        # rospy.loginfo('### pose Received')
+        self.current_pose = msg
+        self.planner.update_vehicle_location(self.current_pose)
 
-    def waypoints_cb(self, waypoints):
-        # TODO: Implement
-        pass
+    def waypoints_cb(self, lane):
+        # waypoints - styx_msgs/Lane, only received once
+        rospy.loginfo('### BASE Waypoint Received')
+        self.base_waypoints = lane.waypoints
+        self.planner.set_base_waypoints(lane.waypoints)
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
@@ -73,6 +101,6 @@ class WaypointUpdater(object):
 
 if __name__ == '__main__':
     try:
-        WaypointUpdater()
+        WaypointUpdater().run()
     except rospy.ROSInterruptException:
         rospy.logerr('Could not start waypoint updater node.')
