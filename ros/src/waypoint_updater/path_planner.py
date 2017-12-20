@@ -5,6 +5,11 @@ from styx_msgs.msg import Lane, Waypoint
 import math
 from copy import deepcopy
 
+# Profile for slowing at traffic light: v = K_SLOW * sqrt(dist - DIST_MIN)
+# This is equivalent to considering a constant deceleration
+K_SLOW = 5     # in m^1/2 . s^-1
+DIST_MIN = 6   # distance we need to be from stop line
+
 def get_plane_distance(target1, target2):
     delta_x = target1.pose.position.x - target2.pose.position.x
     delta_y = target1.pose.position.y - target2.pose.position.y
@@ -18,6 +23,7 @@ class PathPlanner(object):
         # vehicle initial and next index into base_waypoints
         self.init_index = None
         self.next_index = None
+        self.red_light_wp_idx = -1 # -1 is representing traffic light is not red
 
     def set_base_waypoints(self, waypoints):
         self.base_waypoints = waypoints
@@ -26,6 +32,9 @@ class PathPlanner(object):
         self.current_pose = curr_pose
         if self.init_index is None:
             self.init_index = self.find_closest_waypoint_index(0, curr_pose)
+
+    def update_tl_wp(self, wp_idx):
+        self.red_light_wp_idx = wp_idx
 
     def find_closest_waypoint_index(self, start_index, curr_pose):
         if self.base_waypoints is None:
@@ -63,6 +72,7 @@ class PathPlanner(object):
         rospy.loginfo('#__ cur_x: %f, index: %d, next_x: %f', cur_x, self.next_index, next_x)
 
         # hard-coded to test simulator
+        # 10 m/s -> ~22 mph
         speed = 16.0
         for i in range(self.next_index, self.next_index + self.lookahead_wps):
             p = deepcopy(self.base_waypoints[i])
@@ -70,6 +80,36 @@ class PathPlanner(object):
 
             waypoints.append(p)
 
+        self.update_speed(waypoints)
+        
         rospy.loginfo('### generated # of waypoints: %d', len(waypoints))
         return waypoints
 
+    def update_speed(self, waypoints):
+        # adopted from team member Arunana's updater
+        if self.red_light_wp_idx != -1:
+            # find index of waypoint corresponding to traffic light in final_wps
+            red_idx_final_wps = (self.red_light_wp_idx - self.next_index) % len(self.base_waypoints)
+
+            # get position of traffic light
+            traffic_light_waypoint = self.base_waypoints[self.red_light_wp_idx]
+
+            # if it is far, we start reducing the speed slowly until our horizon
+            if red_idx_final_wps >= self.lookahead_wps:
+                red_idx_final_wps = self.lookahead_wps - 1
+
+            # Reduce velocity based on distance to light
+            for idx in range(red_idx_final_wps + 1):
+                distance_to_light = math.sqrt(self.distance_sq_between_waypoints(waypoints[idx], traffic_light_waypoint))
+                # use a profile based on constant deceleration
+                distance_to_stop = max(distance_to_light - DIST_MIN, 0)
+                waypoints[idx].twist.twist.linear.x = min(K_SLOW * math.sqrt(distance_to_stop) * 1000 / 3600,
+                                                                            waypoints[idx].twist.twist.linear.x)
+
+            # Set all future points to zero speed
+            for idx in range(red_idx_final_wps + 1, len(waypoints) - 1):
+                waypoints[idx].twist.twist.linear.x = 0
+
+    def distance_sq_between_waypoints(self, wp1, wp2):
+        dl = lambda a, b: (a.x - b.x) ** 2 + (a.y-b.y)**2  + (a.z-b.z)**2
+        return dl(wp1.pose.pose.position, wp2.pose.pose.position)
