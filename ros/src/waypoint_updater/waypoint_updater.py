@@ -1,7 +1,11 @@
 #!/usr/bin/env python
+
 import rospy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Pose
 from styx_msgs.msg import Lane, Waypoint
+from styx_msgs.msg import TrafficLightArray, TrafficLight
+from sensor_msgs.msg import Image
+from std_msgs.msg import Int32
 
 import math
 from copy import deepcopy
@@ -22,7 +26,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 30 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 50 # Number of waypoints we will publish. You can change this number
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -32,11 +36,14 @@ class WaypointUpdater(object):
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
+        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_lights_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         # TODO: Add other member variables you need below
-
+        self.light_wp = None
+        self.lights = None
         self.current_pose = None
         self.base_waypoints = None
 
@@ -76,8 +83,14 @@ class WaypointUpdater(object):
         self.planner.set_base_waypoints(lane.waypoints)
 
     def traffic_cb(self, msg):
-        # TODO: Callback for /traffic_waypoint message. Implement
-        pass
+        # msg - std_msgs/Int32
+        self.light_wp = msg.data
+        self.planner.update_tl_wp(self.light_wp)
+        rospy.loginfo('### TrafficLightIndex Received: %i', msg.data)
+
+    def traffic_lights_cb(self, msg):
+        # msg - styx_msgs/TrafficLightArray
+        self.lights = msg.lights
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -103,4 +116,3 @@ if __name__ == '__main__':
         WaypointUpdater().run()
     except rospy.ROSInterruptException:
         rospy.logerr('Could not start waypoint updater node.')
-
