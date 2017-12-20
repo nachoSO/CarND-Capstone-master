@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
@@ -104,3 +102,4 @@ if __name__ == '__main__':
         WaypointUpdater().run()
     except rospy.ROSInterruptException:
         rospy.logerr('Could not start waypoint updater node.')
+
