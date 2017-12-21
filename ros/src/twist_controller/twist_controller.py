@@ -30,6 +30,7 @@ class Controller(object):
         self.pid_controller  = PID(Kp,Ki,Kd)
         self.yaw_controller  = YawController(self.wheel_base, self.steer_ratio, 0.0, self.max_lat_accel, self.max_steer_angle)  
         self.timestamp       = rospy.get_time()
+        MAX_VEL = rospy.get_param('/waypoint_loader/velocity') # km/h
 
     def control(self, linear_velocity, angular_velocity, current_velocity, dbw_status_enabled, dt):
         # TODO: Change the arg, kwarg list to suit your needs
@@ -43,7 +44,7 @@ class Controller(object):
         if dbw_status_enabled: 
         
             # compute throttle considering the speed limit constraint
-            cte = min(linear_velocity, MAX_VEL*ONE_MPH) - current_velocity
+            cte = min(linear_velocity, MAX_VEL) - current_velocity
             throttle = self.pid_controller.step(cte, dt)
             
             #throttle can not be greater than 1

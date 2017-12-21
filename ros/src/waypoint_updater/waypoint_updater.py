@@ -41,6 +41,8 @@ class WaypointUpdater(object):
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
+        self.speed_limit = rospy.get_param('/waypoint_loader/velocity') * 1000 / 3600.
+
         # TODO: Add other member variables you need below
         self.light_wp = None
         self.lights = None
@@ -63,9 +65,9 @@ class WaypointUpdater(object):
 
     def run(self):
         rospy.loginfo('### Run')
-        rate = rospy.Rate(2) # 10hz
+        rate = rospy.Rate(5) # 10hz
         while not rospy.is_shutdown():
-            rospy.loginfo('### looping ... ')
+            # rospy.loginfo('### looping ... ')
             waypoints = self.planner.generate_waypoints()
             self.publish(waypoints)
             rate.sleep()
@@ -78,8 +80,9 @@ class WaypointUpdater(object):
 
     def waypoints_cb(self, lane):
         # waypoints - styx_msgs/Lane, only received once
-        rospy.loginfo('### BASE Waypoint Received')
+        rospy.loginfo('### BASE Waypoint Received. speed_limit: %f', self.speed_limit)
         self.base_waypoints = lane.waypoints
+        self.planner.set_speed_limit(self.speed_limit)
         self.planner.set_base_waypoints(lane.waypoints)
 
     def traffic_cb(self, msg):
@@ -91,6 +94,7 @@ class WaypointUpdater(object):
     def traffic_lights_cb(self, msg):
         # msg - styx_msgs/TrafficLightArray
         self.lights = msg.lights
+        self.planner.update_traffic_lights(msg.lights)
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
