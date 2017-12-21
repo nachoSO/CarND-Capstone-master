@@ -4,12 +4,13 @@ from yaw_controller import YawController
 from lowpass import LowPassFilter
 
 GAS_DENSITY = 2.858
-ONE_MPH = 0.44704
+ONE_MPH     = 0.44704
+MAX_VEL     = 40.0
 
 #any suggestion with these parameters?
 Kp = 1
-Ki = 0.05
-Kd = 0.0
+Ki = 0.003
+Kd = 0.25
 
 class Controller(object):
     def __init__(self, *args, **kwargs):
@@ -24,7 +25,8 @@ class Controller(object):
         self.steer_ratio     = rospy.get_param('~steer_ratio', 14.8)
         self.max_lat_accel   = rospy.get_param('~max_lat_accel', 3.)
         self.max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
-
+        
+        self.low_pass = LowPassFilter(0.1,1.0) # (?)
         self.pid_controller  = PID(Kp,Ki,Kd)
         self.yaw_controller  = YawController(self.wheel_base, self.steer_ratio, 0.0, self.max_lat_accel, self.max_steer_angle)  
         self.timestamp       = rospy.get_time()
@@ -36,13 +38,12 @@ class Controller(object):
         throttle = 0.0
         brake    = 0.0
         steering = 0.0
-         
-        # compute throttle 
-        cte  = linear_velocity - current_velocity
- 
+
         #How can we improve this part?
         if dbw_status_enabled: 
         
+            # compute throttle considering the speed limit constraint
+            cte = min(linear_velocity, MAX_VEL*ONE_MPH) - current_velocity
             throttle = self.pid_controller.step(cte, dt)
             
             #throttle can not be greater than 1
@@ -51,8 +52,7 @@ class Controller(object):
                 
             brake = 0.0 #we have to implement this when the tl detection is done...
             
-            low_pass = LowPassFilter(0.1,0.5) # (?)
-            steering = low_pass.filt(self.yaw_controller.get_steering(linear_velocity,angular_velocity,current_velocity))
+            steering = self.low_pass.filt(self.yaw_controller.get_steering(linear_velocity,angular_velocity,current_velocity))
             
         else:
             self.pid_controller.reset()
