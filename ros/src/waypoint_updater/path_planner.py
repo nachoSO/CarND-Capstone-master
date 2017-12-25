@@ -9,11 +9,18 @@ from copy import deepcopy
 # This is equivalent to considering a constant deceleration
 K_SLOW = 5     # in m^1/2 . s^-1
 DIST_MIN = 6   # distance we need to be from stop line
+VEHICLE_LENGTH = 4
 
 def get_plane_distance(target1, target2):
     delta_x = target1.pose.position.x - target2.pose.position.x
     delta_y = target1.pose.position.y - target2.pose.position.y
     return math.sqrt(delta_x * delta_x + delta_y * delta_y)
+
+def distance_sq_between_waypoints(waypoints, wp_idx1, wp_idx2):
+    dl = lambda a, b: (a.x - b.x) ** 2 + (a.y-b.y)**2  + (a.z-b.z)**2
+    wp1 = waypoints[wp_idx1]
+    wp2 = waypoints[wp_idx2]
+    return dl(wp1.pose.pose.position, wp2.pose.pose.position)
 
 class PathPlanner(object):
     def __init__(self, lookahead_wps):
@@ -27,6 +34,8 @@ class PathPlanner(object):
         self.speed_limit = 1
         self.lights = None
         self.lights_wps = []
+        self.waypoints = []
+        self.idx_at_stop = None
 
     def set_base_waypoints(self, waypoints):
         self.base_waypoints = waypoints
@@ -63,19 +72,30 @@ class PathPlanner(object):
             return None
 
         search_dist = 5.0
-        wp_candidates = []
-        for i in range(start_index, len(self.base_waypoints)):
-            if get_plane_distance(self.base_waypoints[i].pose, curr_pose) > search_dist:
-                continue
-            wp_candidates.append(i)
-
+        max_distance = float('inf') if start_index == 0 else search_dist
         min_dist = float('inf')
         min_index = -1
-        for j in range(len(wp_candidates)):
-            d = get_plane_distance(self.base_waypoints[wp_candidates[j]].pose, curr_pose)
+        for i in range(start_index, len(self.base_waypoints)):
+            d = get_plane_distance(self.base_waypoints[i].pose, curr_pose)
+            if d > max_distance:
+                break;
             if d < min_dist:
                 min_dist = d
-                min_index = wp_candidates[j]
+                min_index = i
+
+        return min_index
+
+    def find_idx_at_stop(self, start_index, end_index, distance):
+        search_delta = 5.0
+        min_index = start_index
+        wp = self.base_waypoints[start_index]
+        min_delta = float('inf')
+        for i in range(start_index, end_index):
+            d = get_plane_distance(self.base_waypoints[i].pose, wp.pose)
+            if math.fabs(distance - d) < min_delta:
+                min_delta = math.fabs(distance - d)
+                min_index = i
+
         return min_index
 
     def generate_waypoints(self):
@@ -83,6 +103,7 @@ class PathPlanner(object):
         if self.current_pose is None or self.base_waypoints is None:
             return waypoints
 
+        self.next_index = self.init_index
         if self.next_index is None:
             self.next_index = 0
 
@@ -96,12 +117,54 @@ class PathPlanner(object):
         end_wp_idx = self.next_index + self.lookahead_wps 
         end_wp_idx = end_wp_idx if end_wp_idx<len(self.base_waypoints) else len(self.base_waypoints)-self.next_index
         
-        waypoints = deepcopy(self.base_waypoints[self.next_index: end_wp_idx])
+        #TODO: how to wrap around instead of stop at the last waypoint
+        if self.next_index < len(self.base_waypoints):
+            waypoints = deepcopy(self.base_waypoints[self.next_index: end_wp_idx])
+        else:
+            # Last waypoint
+            last_waypoint = deepcopy(self.base_waypoints[-1])
+            waypoints.append(last_waypoint)
+            self.set_waypoint_velocity(waypoints, 0, 0.0)
 
-        self.update_speed(waypoints)
+        self.handle_vehicle_stop(waypoints)
         
+        self.init_index = self.next_index
         # rospy.loginfo('### generated # of waypoints: %d', len(waypoints))
         return waypoints
+
+    def handle_vehicle_stop(self, waypoints):
+        if self.red_light_wp_idx > 0:
+            distance_to_light = math.sqrt(distance_sq_between_waypoints(self.base_waypoints, self.next_index, self.red_light_wp_idx))
+            waypoints_span = self.distance(waypoints, 0, len(waypoints)-1)
+
+            if self.idx_at_stop is None:
+                latency = 0.1 * self.get_waypoint_velocity(waypoints[0])
+                distance_to_stop = max(distance_to_light - DIST_MIN - VEHICLE_LENGTH - latency, 0)
+                self.idx_at_stop = self.find_idx_at_stop(self.next_index, self.red_light_wp_idx, distance_to_stop)
+            idx_delta = self.idx_at_stop - self.next_index
+
+            #rospy.loginfo('Cur Pos: %d, RedLight at: %d, Stop at: %d', self.next_index, self.red_light_wp_idx, self.idx_at_stop)
+            #rospy.loginfo('Distance to RedLight: %f', distance_to_light)
+            if idx_delta > 0 and idx_delta < len(waypoints):
+                for i in reversed(range(len(waypoints))):
+                    if i < idx_delta:
+                        dist = get_plane_distance(waypoints[i].pose, waypoints[idx_delta-1].pose)
+                        vel = math.sqrt(2.0 * K_SLOW * dist)
+                        if vel < 1.0:
+                            vel = 0.0
+                        v = self.get_waypoint_velocity(waypoints[i])
+                        v = min(vel, v)
+                        self.set_waypoint_velocity(waypoints, i, v)
+                    else:
+                        self.set_waypoint_velocity(waypoints, i, 0.0)
+                    # rospy.loginfo('RedLight: speed %f', self.get_waypoint_velocity(waypoints[i]))
+            elif idx_delta > len(waypoints):
+                pass
+            elif idx_delta <= 0:
+                for i in range(len(waypoints)):
+                    self.set_waypoint_velocity(waypoints, i, 0.0)
+        else:
+            self.idx_at_stop = None
 
     def update_speed(self, waypoints):
         # adopted from team member Arunana's updater (not working yet)
@@ -118,7 +181,7 @@ class PathPlanner(object):
 
             # Reduce velocity based on distance to light
             for idx in range(red_idx_final_wps + 1):
-                distance_to_light = math.sqrt(self.distance_sq_between_waypoints(waypoints[idx], traffic_light_waypoint))
+                distance_to_light = math.sqrt(distance_sq_between_waypoints(waypoints,idx,self.red_light_wp_idx))
                 # use a profile based on constant deceleration
                 distance_to_stop = max(distance_to_light - DIST_MIN, 0)
                 waypoints[idx].twist.twist.linear.x = min(K_SLOW * math.sqrt(distance_to_stop) * 1000 / 3600,
@@ -128,6 +191,16 @@ class PathPlanner(object):
             for idx in range(red_idx_final_wps + 1, len(waypoints) - 1):
                 waypoints[idx].twist.twist.linear.x = 0
 
-    def distance_sq_between_waypoints(self, wp1, wp2):
-        dl = lambda a, b: (a.x - b.x) ** 2 + (a.y-b.y)**2  + (a.z-b.z)**2
-        return dl(wp1.pose.pose.position, wp2.pose.pose.position)
+    def get_waypoint_velocity(self, waypoint):
+        return waypoint.twist.twist.linear.x
+
+    def set_waypoint_velocity(self, waypoints, waypoint, velocity):
+        waypoints[waypoint].twist.twist.linear.x = velocity
+
+    def distance(self, waypoints, wp1, wp2):
+        dist = 0
+        dl = lambda a, b: math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
+        for i in range(wp1, wp2+1):
+            dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
+            wp1 = i
+        return dist

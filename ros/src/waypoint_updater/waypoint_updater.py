@@ -50,6 +50,7 @@ class WaypointUpdater(object):
         self.base_waypoints = None
 
         self.planner = PathPlanner(LOOKAHEAD_WPS)
+        self.planner.set_speed_limit(self.speed_limit)
 
         # rospy.spin()
 
@@ -82,7 +83,6 @@ class WaypointUpdater(object):
         # waypoints - styx_msgs/Lane, only received once
         rospy.loginfo('### BASE Waypoint Received. speed_limit: %f', self.speed_limit)
         self.base_waypoints = lane.waypoints
-        self.planner.set_speed_limit(self.speed_limit)
         self.planner.set_base_waypoints(lane.waypoints)
 
     def traffic_cb(self, msg):
@@ -94,17 +94,11 @@ class WaypointUpdater(object):
     def traffic_lights_cb(self, msg):
         # msg - styx_msgs/TrafficLightArray
         self.lights = msg.lights
-        self.planner.update_traffic_lights(msg.lights)
+        # self.planner.update_traffic_lights(msg.lights)
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
         pass
-
-    def get_waypoint_velocity(self, waypoint):
-        return waypoint.twist.twist.linear.x
-
-    def set_waypoint_velocity(self, waypoints, waypoint, velocity):
-        waypoints[waypoint].twist.twist.linear.x = velocity
 
     def distance(self, waypoints, wp1, wp2):
         dist = 0
