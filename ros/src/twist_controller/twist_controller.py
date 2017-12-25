@@ -52,6 +52,20 @@ class Controller(object):
                 throttle = 1
                 
             brake = 0.0 #we have to implement this when the tl detection is done...
+            if linear_velocity < 0.01 and current_velocity < 0.1:
+                # full stop
+                throttle = 0.0
+                brake = 500
+            else:
+                if throttle >= 0.001:
+                    brake = 0.0
+                elif throttle < -self.brake_deadband:
+                    brake = -throttle * self.vehicle_mass * self.wheel_radius
+                    throttle = 0.0
+                else:
+                    brake = 0.0
+                    throttle = 0.0
+            #rospy.loginfo('### Throttle %.3f, Brake: %.3f ', throttle, brake)
             
             steering = self.low_pass.filt(self.yaw_controller.get_steering(linear_velocity,angular_velocity,current_velocity))
             
