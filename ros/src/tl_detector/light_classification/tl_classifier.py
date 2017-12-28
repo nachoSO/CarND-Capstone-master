@@ -1,64 +1,72 @@
 from styx_msgs.msg import TrafficLight
-import label_image
-import os.path
-import rospy
+import os
 
 import tensorflow as tf
 import numpy as np
-import cv2
-
-MODEL_INPUT_SIZE = 224
-MODEL_INPUT_MEAN = 127.5
-MODEL_INPUT_STD = 127.5
-INPUT_LAYER = "import/input"
-OUTPUT_LAYER = "import/final_result"
 
 class TLClassifier(object):
 
-    def __init__(self, model_path, labels_path):
+    def __init__(self, case):
 
-        # Load graph, labels, input and output sensors
-        self.graph = label_image.load_graph(model_path)
-        self.labels = label_image.load_labels(labels_path)
-        self.red_idx = self.get_red_idx()
-        self.input_operation = self.graph.get_operation_by_name(INPUT_LAYER)
-        self.output_operation = self.graph.get_operation_by_name(OUTPUT_LAYER)
+    	# switch between simulator or real scenario
+        self.case = case
+        this_dir = os.path.dirname(os.path.realpath(__file__))
+        if self.case == 'sim': 
+            model_fname = this_dir + '/sim_frozen_inference_graph.pb'
+        else:
+            model_fname = this_dir + '/real_frozen_inference_graph.pb'
 
-        # Create sessions
-        self.sess = tf.Session(graph=self.graph)
+    	# load model graph
+        print(model_fname)
+        self.detection_graph = tf.Graph()
+        with self.detection_graph.as_default():
+            od_graph_def = tf.GraphDef()
+            with tf.gfile.GFile(model_fname, 'rb') as fid:
+                serialized_graph = fid.read()
+                od_graph_def.ParseFromString(serialized_graph)
+                tf.import_graph_def(od_graph_def, name='')
+            self.input = self.detection_graph.get_tensor_by_name('image_tensor:0')
+            self.boxes = self.detection_graph.get_tensor_by_name('detection_boxes:0')
+            self.scores = self.detection_graph.get_tensor_by_name('detection_scores:0')
+            self.classes = self.detection_graph.get_tensor_by_name('detection_classes:0')
+            self.num = self.detection_graph.get_tensor_by_name('num_detections:0')
+        self.sess = tf.Session(graph=self.detection_graph)
 
-    def get_red_idx(self):
-        ''' Find index of the red class '''
-        
-        for n, l in enumerate(self.labels):
-            if l == "red":
-                return n
-        rospy.logerr("'red' was not found as a possible label in 'classifier_labels.txt'")
-        raise
-        
-    def normalize_image(self, image, model_input_size=MODEL_INPUT_SIZE,
-                        input_mean=MODEL_INPUT_MEAN, input_std=MODEL_INPUT_STD):
-        ''' Ensure we convert the image to a format compatible with the model graph '''
-        
-        normalized_image = cv2.resize(image, (model_input_size, model_input_size))
-        normalized_image = (normalized_image - input_mean) / input_std
-        return normalized_image
+    def get_classification(self, img):
+        """Determines the state of the traffic light in the image if any
 
-    def get_classification(self, image):
-        """Determines the probability of having a red light
         Args:
-            image (cv::Mat): image containing the traffic light
+            image (cv::Mat): input image
+
         Returns:
-            float: probability of having a red light
+            int: TL color identifier (specified in styx_msgs/TrafficLight)
+
         """
 
-        # Normalize image
-        normalized_image = [self.normalize_image(image)]
+        with self.detection_graph.as_default():
+            # model expects image to receive image of shape [1, None, None, 3].
+            img_expanded = np.expand_dims(img, axis=0)
 
-        # Perform prediction
-        results = self.sess.run(self.output_operation.outputs[0],
-                           {self.input_operation.outputs[0]: normalized_image})
-        results = np.squeeze(results)
+            (boxes, scores, classes, num) = self.sess.run(
+                [self.boxes, self.scores, self.classes, self.num],
+                feed_dict={self.input: img_expanded}
+            )
+        
+        min_score_thresh = 0.5
+        condition = scores > min_score_thresh
+        detections_above_thresh = np.extract(condition, classes)
+        unique_classes, counts = np.unique(
+            detections_above_thresh, 
+            return_counts=True
+        )
+        most_probable_class = unique_classes[counts.argsort()[::-1]]
+        tld_class =  int(most_probable_class.item(0)) if len(most_probable_class) > 0 else 4
 
-        # Probability of having a red light
-        return results[self.red_idx]
+        if tld_class == 1:
+            return TrafficLight.GREEN
+        elif tld_class == 2:
+            return TrafficLight.RED
+        elif tld_class == 3:
+            return TrafficLight.YELLOW
+        else:
+            return TrafficLight.UNKNOWN
