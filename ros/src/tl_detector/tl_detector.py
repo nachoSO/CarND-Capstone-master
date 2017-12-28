@@ -13,19 +13,17 @@ import yaml
 
 import numpy as np
 from scipy.spatial import distance, cKDTree
-from time import time
+import time
 
 STATE_COUNT_THRESHOLD = 3
 
 class TLDetector(object):
     def __init__(self):
+
         rospy.init_node('tl_detector')
 
         self.pose = None
-
-        # cKDTree of waypoints to make lookup faster
         self.waypoints = None
-
         self.camera_image = None
         self.lights = []
 
@@ -44,21 +42,24 @@ class TLDetector(object):
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
-
         # TODO: Move it to the config file
         self.config['traffic_light_min_distance'] = 100
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
         self.bridge = CvBridge()
-        # TODO: temporary disabled till we will integrate with classificator. we should initialise it properly.
-        # self.light_classifier = TLClassifier()
+        
         self.listener = tf.TransformListener()
 
         self.state = TrafficLight.UNKNOWN
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+
+        # use case='sim' to load the classifier for the simulated scenario
+        # use case='real' to load the classifier for the real scenario
+        self.light_classifier = TLClassifier(case='sim')
+        
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -184,10 +185,8 @@ class TLDetector(object):
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        #Get classification
-        # TODO: temporary disabled till we will integrate with classificator. Set state from simulator data as for now
-        # return self.light_classifier.get_classification(cv_image)
-        return light.state
+        # Get classification
+        return self.light_classifier.get_classification(cv_image)
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -212,21 +211,21 @@ class TLDetector(object):
         if self.pose is None:
             return res_unknown
 
-        # _t = time()
+        # _t = time.time()
 
         # get closest light index
         light_idx = self.get_closest_light()
         if light_idx is None:
             return res_unknown
 
-        # rospy.loginfo('Closest light procedure: {}'.format(time() - _t))
+        # rospy.loginfo('Closest light procedure: {}'.format(time.time() - _t))
 
         # get stop line related to light 
         stop_line_coord = self.config['stop_line_positions'][light_idx]
         stop_line_wp = self.get_closest_waypoint(stop_line_coord)
         state = self.get_light_state(self.lights[light_idx])
 
-        # rospy.loginfo('Total lookup time: {}'.format(time() - _t))
+        # rospy.loginfo('Total lookup time: {}'.format(time.time() - _t))
         return stop_line_wp, state
 
 if __name__ == '__main__':
