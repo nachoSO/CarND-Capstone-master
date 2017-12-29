@@ -103,32 +103,24 @@ roslaunch launch/styx.launch
   
 # Additional Resources Implemented
 
-## Traffic Light Image Classification
+## Traffic Light Detection
 
-The perception subsystem dynamically classifies the color of traffic lights in front of the vehicle. In the given simulator and test site environment, the car faces a single traffic light or a set of 3 traffic lights in the same state (green, yellow, red). We assume it is not possible to have multiple traffic lights in the different states at the same time.
-We have considered classifying the entire image using CNN approach to solve the traffic light classification task. We used different set of models and got the following results <>
+The perception subsystem dynamically detects traffic lights in the proximity of the vehicle and classifies its color. 
 
-## Dataset
+In the simulator and test site environment, the car can face either a single traffic light or a set of three traffic lights in the same state. In this exercise, the traffic light state space is restricted to {Green, Red, Yellow}.
 
-There are multiple datasets, available for model training:
+The detector was built relying on a **transfer learning** approach: a pre-trained model on a different *broader* object detection task was fine-tuned to perform the specific task of detecting and classifying traffic lights. This decission is backed by the fact that the amount of training data is limited (the Udacity simulator and test track are enclosed environments, providing repetitive scenarios) hence overfitting is a potential issue. Using a pre-trained model allows to economize on the effort of training a feature extractor while avoiding overfitting in problems where data availability is an issue.  
 
-•	images from the Udacity Simulator (images as well as the ground truth from the frontal camera are available as a ROS topic);
-https://drive.google.com/open?id=0Bw5abyXVejvMci03bFRueWVXX1U
+For this project two separate models are trained, one to be used with the simulator, and another one to be used with Carla, in the *real* test environment.
 
-•	rosbag, captured on the Udacity's test site;
-https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view
+The selected model architecture was a [Faster-RCNN](https://arxiv.org/abs/1506.01497), since it provides high speed inference (~100 ms region) and has superior perfomance on small objects (compared to SSD for instance).
 
-## Image Preprocessing
+The pre-trained model was taken from TensorFlow's [model zoo](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md). In particular, `faster_rcnn_resnet101coco` was used, which contains the weights of a Faster R-CNN with Resnet-101 architecture trained on the [COCO dataset](http://cocodataset.org/#home).
 
-On the image pre-processing step we've applied multiple visual transformations:
-•	 
-•	 
-•	 
-•	 
+The pre-trained model was fine-tuned using TensorFlow's [Object Detection API](https://github.com/tensorflow/models/tree/master/research/object_detection) with labeled snapshots from Udacity's simulator, and rosbag data collected at the test site respectively, yielding the two models as explained at the beginning of the section.
 
-## Neural Network Model
-
-## Accuracy on the simulator data
+![Simulator Detection](imgs/sim_detection_example.png)
+![Real Detection](imgs/real_detection_example.png)
 
 # Waypoint Updater
 
