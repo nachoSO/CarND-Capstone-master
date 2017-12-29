@@ -119,6 +119,9 @@ The pre-trained model was taken from TensorFlow's [model zoo](https://github.com
 
 The pre-trained model was fine-tuned using TensorFlow's [Object Detection API](https://github.com/tensorflow/models/tree/master/research/object_detection) with labeled snapshots from Udacity's simulator, and rosbag data collected at the test site respectively, yielding the two models as explained at the beginning of the section.
 
+![Simulator Detection](imgs/sim_detection_example.png)
+![Real Detection](imgs/real_detection_example.png)
+
 # Waypoint Updater
 
 ## Implementation
