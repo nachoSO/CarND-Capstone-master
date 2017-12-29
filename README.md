@@ -2,13 +2,42 @@
 # Self driving car system integration project
 ## Implemented by Team (final_project)
 
-#### Dec <>, 2017
+#### Dec <31/12/2017>
 
 # Objective
 
 The objective of the project is to control CARLAs throttle, steering and brakes to navigate map waypoints to successfully drive the car on a highway. The car is expected to follow lanes, traffic lights and objects and plan a trajectory to follow based on the waypoints. The car should be able to classify “Red”, “Green”, and “Yellow” lights and be able to stop/start/slow down based on the traffic signal.
 Before running our code on CARLA we are developing the code to work in a simulator. 
 The simulator works in a very similar way to CARLA as all ROS nodes and topics are same. So if our system works in the simulator, we expect that it should also work on CARLA. 
+
+
+# Team
+
+•	Nacho Sañudo	    nacho.sanudo@gmail.com	
+
+•	Suren Arustamyan	arustamyansv@gmail.com	
+
+•	Arunava Saha	    aru.saha@gmail.com
+
+•	Pedro Morales	    part.morales@gmail.com	
+
+•	Yadong Liu	      ydliu@yahoo.com			
+
+
+# Specifications
+
+• Smoothly follow waypoints in the simulator. ✓
+
+• Respect the target top speed set for the waypoints' twist.twist.linear.x in waypoint_loader.py. Be sure to check that this is working by testing with different values for kph velocity parameter in /ros/src/waypoint_loader/launch/waypoint_loader.launch. If your vehicle adheres to the kph target top speed set here, then you have satisfied this requirement. ✓
+
+• Stop at traffic lights when needed. ✓
+
+• Stop and restart PID controllers depending on the state of /vehicle/dbw_enabled. ✓
+
+• Publish throttle, steering, and brake commands at 50hz. ✓
+
+• Launch correctly using the launch files provided in the capstone repo. Please note that we will not be able to accomodate special launch instructions or run additional scripts from your submission to download files. The launch/styx.launch and launch/site.launch files will be used to test code in the simulator and on the vehicle respectively. The submission size limit for this project has been increased to 2GB. ✓
+
 
 # The system architecture and principles behind it
 
@@ -18,7 +47,9 @@ The system architecture consists of the following modules:
 
 Traffic light detection - We used a deep neural net to detect if the upcoming traffic light is red or not. We trained the classifier once with images from the simulator and once with real images from the ROS bag. A detailed description of the architecture and training parameters can be found in the respective section below (under additional resources implemented) 
 We employed the MobileNet architecture to efficiently detect / classify traffic lights. We applied transfer learning … and implemented on two modes as follows: 
+
 •	Simulator mode: classifies whole images as either red/green/yellow. The model was trained with several datasets using the Tensorflow Image Retraining Example 
+
 •	Test-site mode: we employed <> framework to locate a traffic light… 
 
 ## Planning
@@ -27,8 +58,9 @@ o	Waypoint Updater - sets target velocity for each waypoint based on upcoming tr
 
 ## Control subsystems
 
-The control subsystem is implemented using the ROS Package drive-by-wire which adjusts throttle and brakes according to the velocity targets published by the waypoint follower (which is informed by the waypoint updater node). If the list of waypoints contains a series of descending velocity targets, the PID velocity controller (in the twist controller component of DBW) will attempt to match the target velocity
-o	DBW (Drive by Wire) - takes target trajectory information as input and sends control commands to navigate the vehicle.  The dbw_node subscribes to the /current_velocity topic along with the /twist_cmd topic to receive target linear and angular velocities. Additionally, this node subscribes to /vehicle/dbw_enabled, which indicates if the car is under dbw or driver control. This node will publish throttle, brake, and steering commands to the /vehicle/throttle_cmd, /vehicle/brake_cmd, and /vehicle/steering_cmd topics.
+The goal for this part of the project is to implement the drive-by-wire node.
+The control subsystem is implemented using the ROS Package drive-by-wire which adjusts throttle and brakes according to the velocity targets published by the waypoint follower (which is informed by the waypoint updater node). If the list of waypoints contains a series of descending velocity targets, the PID velocity controller (in the twist controller component of DBW) will attempt to match the target velocity. The PID velocity controller is implemented using the following parameters: (1,0.003,0.25). 
+In this context, the DBW (Drive by Wire) - takes target trajectory information as input and sends control commands to navigate the vehicle.  The dbw_node subscribes to the /current_velocity topic along with the /twist_cmd topic to receive target linear and angular velocities. Additionally, this node subscribes to /vehicle/dbw_enabled, which indicates if the car is under dbw or driver control. This node will publish throttle, brake, and steering commands to the /vehicle/throttle_cmd, /vehicle/brake_cmd, and /vehicle/steering_cmd topics.
 
 ![alt text](imgs/architecture.png)
 
@@ -53,15 +85,14 @@ The diagram below illustrates the system architecture. The autonomous vehicle co
 # Operation
 
 There are three modes in which the controller operates:
+
 •	site: When at the test site, this mode is launched. This mode can be run simultaneously with a rosbag to test the traffic light     classifier
+
 •	sitesim: emulates the test site in the simulator at the first traffic light
+
 •	styx: When using the term3 simulator, this mode is launched. The simulator communicates through server.py and bridge.py
 These modes are started by roslaunch. For example, to run the styx (simulator) version we run:
 roslaunch launch/styx.launch
-
-# Team
-
-
 
 # Results
 
@@ -80,8 +111,10 @@ We have considered classifying the entire image using CNN approach to solve the 
 ## Dataset
 
 There are multiple datasets, available for model training:
+
 •	images from the Udacity Simulator (images as well as the ground truth from the frontal camera are available as a ROS topic);
 https://drive.google.com/open?id=0Bw5abyXVejvMci03bFRueWVXX1U
+
 •	rosbag, captured on the Udacity's test site;
 https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view
 
