@@ -13,7 +13,7 @@ The simulator works in a very similar way to CARLA as all ROS nodes and topics a
 
 # Team
 
-•	Nacho Sañudo	    nacho.sanudo@gmail.com	
+•	Nacho Sañudo	    ignacio.sanudoolmedo@unimore.it	
 
 •	Suren Arustamyan	arustamyansv@gmail.com	
 
