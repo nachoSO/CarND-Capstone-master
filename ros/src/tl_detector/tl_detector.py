@@ -13,7 +13,6 @@ import yaml
 
 import numpy as np
 from scipy.spatial import distance, cKDTree
-import time
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -42,7 +41,8 @@ class TLDetector(object):
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
-        # TODO: Move it to the config file
+
+        # define minimal distance we will consider traffic lights
         self.config['traffic_light_min_distance'] = 100
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
@@ -85,7 +85,6 @@ class TLDetector(object):
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
 
-        # TODO: we may add processing for blinking yellow state as well to approach stop line smoosly...
         # in case traffic light changed from what we sent previously reset counter
         if (self.last_wp, self.last_state) != (light_wp, state):
             self.state_count = 0
@@ -158,7 +157,6 @@ class TLDetector(object):
                 continue
 
             # in case car waypoint followed by light waypoint then car is in front so skip.
-            # TODO: questionable logic. Try to utilise car yaw to define it later.
             light_wp_idx = self.get_closest_waypoint(light_coord)
             if car_wp_idx > light_wp_idx:
                 continue
@@ -211,21 +209,16 @@ class TLDetector(object):
         if self.pose is None:
             return res_unknown
 
-        # _t = time.time()
-
         # get closest light index
         light_idx = self.get_closest_light()
         if light_idx is None:
             return res_unknown
-
-        # rospy.loginfo('Closest light procedure: {}'.format(time.time() - _t))
 
         # get stop line related to light 
         stop_line_coord = self.config['stop_line_positions'][light_idx]
         stop_line_wp = self.get_closest_waypoint(stop_line_coord)
         state = self.get_light_state(self.lights[light_idx])
 
-        # rospy.loginfo('Total lookup time: {}'.format(time.time() - _t))
         return stop_line_wp, state
 
 if __name__ == '__main__':
