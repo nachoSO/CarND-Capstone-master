@@ -90,13 +90,6 @@ There are three modes in which the controller operates:
 These modes are started by roslaunch. For example, to run the styx (simulator) version we run:
 roslaunch launch/styx.launch
 
-# Results
-
-•	Video from the dash camera onboard the test vehicle:
-•	Point cloud visualization:  
-•	A map of the test run can be found at <>
-•	Log file, ROS bag, and feedback:  
-  
 # Additional Resources Implemented
 
 ## Traffic Light Detection
