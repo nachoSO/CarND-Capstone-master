@@ -58,7 +58,8 @@ class TLDetector(object):
 
         # use case='sim' to load the classifier for the simulated scenario
         # use case='real' to load the classifier for the real scenario
-        self.light_classifier = TLClassifier(case='sim')
+        sim_or_site = rospy.get_param("~graph_case")
+        self.light_classifier = TLClassifier(case=sim_or_site)
         
         rospy.spin()
 
