@@ -45,12 +45,7 @@ The system architecture consists of the following modules:
 
 ## Perception
 
-Traffic light detection - We used a deep neural net to detect if the upcoming traffic light is red or not. We trained the classifier once with images from the simulator and once with real images from the ROS bag. A detailed description of the architecture and training parameters can be found in the respective section below (under additional resources implemented) 
-We employed the MobileNet architecture to efficiently detect / classify traffic lights. We applied transfer learning … and implemented on two modes as follows: 
-
-•	Simulator mode: classifies whole images as either red/green/yellow. The model was trained with several datasets using the Tensorflow Image Retraining Example 
-
-•	Test-site mode: we employed <> framework to locate a traffic light… 
+Traffic light detection - We used a deep neural net to detect if the upcoming traffic light is red or not. The classifier was built using a **transfer learning** apprach. A detailed description of the architecture and training parameters can be found in the respective section below (under additional resources implemented) 
 
 ## Planning
 The waypoint updater node publishes a list of n waypoints ahead of the vehicle position, each with a target velocity. For the simulator, n=50 is sufficient.  We refresh all n waypoints by making a copy from the base waypoint list in order to update each waypoint's speed. When a light-state changes, the target speed of waypoints are updated to gradually slow down the vehicle such that it stops at the traffic light waypoint. This module is performed using the ROS Package Waypoint updater which is explained as below:
@@ -129,12 +124,12 @@ The pre-trained model was fine-tuned using TensorFlow's [Object Detection API](h
 
 The waypoint updater node publishes a list of n waypoints ahead of the vehicle current position, each with a target velocity. We settled on n=50 after a few trial and error.  The updater refreshes all n waypoints by making a copy from the base waypoints in order to update each waypoint's speed. When a traffic light changes its state (in particular to red), the target speed of waypoints are updated to gradually slow down the vehicle so that it stops at the traffic light waypoint. Here are a few more details on the implementation.
 
-• The list of waypoints are only created and published to the /final_waypoints topic only after the base waypoints and current vehicle position are available.
-• Initialize the vehicle's position in the base waypoint list by performing a global search based on distance from the currently reported vehicle coordinates. Find the next waypoint index (`next_index`) that is in front of the vehicle.
-• Deep copy n candidate waypoints starting with `next_index` from the base waypoint list
-• Keep the target speed of the candidate waypoints unless we are notified of a traffic light ahead identified by a non-negative waypoint index.
-• If a red traffic light is detected (as reported by the `tl_dectetor` node above), the candidate waypoints' target speed is reduced to zero at the stop position (after taking into consideration of vehicle length and stop margin)
-• The candidate waypoints are published at an interval of 5Hz so that other ROS topic can make use of the data (specifically the `twist_controller` node will use its PID controller to control speed and lane following)
+* The list of waypoints are only created and published to the /final_waypoints topic only after the base waypoints and current vehicle position are available.
+* Initialize the vehicle's position in the base waypoint list by performing a global search based on distance from the currently reported vehicle coordinates. Find the next waypoint index (`next_index`) that is in front of the vehicle.
+* Deep copy n candidate waypoints starting with `next_index` from the base waypoint list
+* Keep the target speed of the candidate waypoints unless we are notified of a traffic light ahead identified by a non-negative waypoint index.
+* If a red traffic light is detected (as reported by the `tl_dectetor` node above), the candidate waypoints' target speed is reduced to zero at the stop position (after taking into consideration of vehicle length and stop margin)
+* The candidate waypoints are published at an interval of 5Hz so that other ROS topic can make use of the data (specifically the `twist_controller` node will use its PID controller to control vehicle speed and lane following)
 
 # Drive By Wire
 
