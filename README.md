@@ -1,6 +1,6 @@
 
 # Self driving car system integration project
-## Implemented by Team (final_project)
+## Implemented by Team Hercules (final_project)
 
 #### Dec <31/12/2017>
 
